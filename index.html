@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Terrain Extractor Web</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    canvas { border: 1px solid #ccc; display: block; margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>Terrain Extractor</h1>
+  <label>Upload Map Image:
+    <input type="file" id="imageLoader" accept="image/*">
+  </label>
+  <br><br>
+  <button onclick="
+    const n = parseFloat(prompt('North lat:'));
+    const s = parseFloat(prompt('South lat:'));
+    const e = parseFloat(prompt('East lon:'));
+    const w = parseFloat(prompt('West lon:'));
+    if (!isNaN(n) && !isNaN(s) && !isNaN(e) && !isNaN(w)) setGeoBounds(n, s, e, w);
+  ">Set Geographic Bounds</button>
+  <button id="exportGeoJSON">Export GeoJSON</button>
+
+  <canvas id="canvas" width="600" height="400"></canvas>
+
+  <script src="extractmap.js"></script>
+</body>
+</html>
