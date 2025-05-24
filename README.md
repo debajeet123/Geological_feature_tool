@@ -6,6 +6,7 @@ A Python-based tool to interactively extract map features by color, using OpenCV
 
 ---
 
+
 ## ✨ Features
 
 - 🖱️ Draw bounding boxes interactively
