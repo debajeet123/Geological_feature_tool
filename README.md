@@ -74,7 +74,7 @@ Pixel coordinates are automatically converted to geographic coordinates using th
 ## 📸 Screenshot
 
 <p align="center">
-  <img src="docs/demo_overlay.png" width="800"/>
+  <img src="Screenshot.png" width="800"/>
 </p>
 
 ---
