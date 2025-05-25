@@ -1,3 +1,35 @@
+"""
+Real-Time Contour Extractor with Geo-referencing
+
+This script enables you to extract contours from an image and save them as geo-referenced KML files.
+It provides an interactive graphical interface for selecting regions of interest and picking colors for contour extraction.
+
+Features:
+1. Draw a bounding box on the image to define the region of interest (ROI).
+2. Pick a target color inside the bounding box to extract contours based on color similarity.
+3. Save the extracted contours as a KML file with geographic coordinates.
+
+Instructions:
+ • Left-click and drag to draw or update the bounding box.
+ • Right-click inside the bounding box to pick a target color for contour extraction.
+ • Press ESC to exit the application.
+
+Geographic Mapping:
+The script assumes that the entire image corresponds to a specific geographic extent, defined by the `geo_bounds` dictionary.
+- `geo_bounds` contains the longitude (`west`, `east`) and latitude (`north`, `south`) bounds of the image.
+- Update these values to match the geographic area represented by your image.
+
+Dependencies:
+ - OpenCV (cv2): For image processing and graphical interface.
+ - NumPy: For numerical operations.
+ - scikit-image (measure): For contour detection.
+ - pathlib: For file handling.
+
+Output:
+ - Extracted contours are saved as a KML file (`picked_contours.kml`) with geo-referenced coordinates.
+
+"""
+
 import cv2
 import numpy as np
 from skimage import measure
@@ -22,6 +54,13 @@ geo_bounds = {
     "north": -15,
     "south": -17.5
 }
+
+# Tutorial:
+# geo_bounds defines the geographic extent of the image.
+# - "west" and "east" represent the longitude bounds.
+# - "north" and "south" represent the latitude bounds.
+# These values are used to map pixel coordinates to geographic coordinates.
+# Update these values based on the geographic area your image represents.
 def pixel_to_latlon(x, y, img_shape, geo_bounds):
     h, w = img_shape[:2]
     rx = x / w
@@ -94,38 +133,7 @@ def save_kml(contours, bbox, filename="picked_contours.kml"):
         coords = [
             f"{lon},{lat},0"
             for px, py in pts
-            for lon, lat in [pixel_to_latlon(px, py, orig.shape, geo_bounds)]
-        ]
-        kml += [
-            f"<Placemark><name>feature_{i}</name>",
-            "<Style><LineStyle><color>ff0000ff</color><width>2</width></LineStyle></Style>",
-            "<LineString><tessellate>1</tessellate><coordinates>",
-            " ".join(coords),
-            "</coordinates></LineString></Placemark>"
-        ]
-    kml.append("</Document></kml>")
-    Path(filename).write_text("\n".join(kml))
-    print(f"[✔] Saved Geo-referenced KML → {filename}")
-
-
-def mouse_cb(event, x, y, flags, param):
-    global ix, iy, drawing, bbox, target_rgb
-    if event == cv2.EVENT_LBUTTONDOWN:
-        drawing = True
-        ix, iy = x, y
-        bbox = None
-    elif event == cv2.EVENT_MOUSEMOVE and drawing:
-        # update live rectangle
-        img[:] = orig.copy()
-        cv2.rectangle(img, (ix,iy), (x,y), (0,255,0), 2)
-        cv2.imshow("Real-Time Contour Extractor", img)
-    elif event == cv2.EVENT_LBUTTONUP:
-        drawing = False
-        # finalize bbox
-        x1, x2 = sorted([ix, x])
-        y1, y2 = sorted([iy, y])
-        bbox = (x1, y1, x2, y2)
-        extract_and_draw()
+            for lon,
     elif event == cv2.EVENT_RBUTTONDOWN:
         # pick color inside bbox
         if bbox:
