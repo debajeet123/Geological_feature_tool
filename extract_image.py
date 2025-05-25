@@ -33,6 +33,11 @@ Output:
 import cv2
 import numpy as np
 from skimage import measure
+from sklearn.cluster import KMeans
+from matplotlib import cm
+from scipy.spatial import distance
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 # globals for mouse callback
 drawing = False
@@ -42,18 +47,50 @@ target_rgb = None
 tol = 30
 
 # load & clone
-img = cv2.imread("test.jpg")
+img = cv2.imread("map.png")
 if img is None:
     raise FileNotFoundError("map.png not found")
 orig = img.copy()
 
+# ✅ Define the function first
+def get_geo_bounds_from_input():
+    try:
+        print("Enter geographic bounds of the image:")
+        west = float(input("  West longitude (e.g., -71): "))
+        east = float(input("  East longitude (e.g., -66.8): "))
+        north = float(input("  North latitude (e.g., -15): "))
+        south = float(input("  South latitude (e.g., -17.5): "))
+        return {"west": west, "east": east, "north": north, "south": south}
+    except ValueError:
+        print("❌ Invalid input. Using default geo_bounds.")
+        return {
+            "west": -71,
+            "east": -66.8,
+            "north": -15,
+            "south": -17.5
+        }
+
+def show_3d_surface(region):
+    """
+    Simulate and plot a 3D surface from the intensity of the region.
+    """
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+    x = np.arange(gray.shape[1])
+    y = np.arange(gray.shape[0])
+    X, Y = np.meshgrid(x, y)
+    Z = gray.astype(float)
+
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(111, projection='3d')
+    surf = ax.plot_surface(X, Y, Z, cmap='terrain', linewidth=0, antialiased=False)
+    ax.set_title("Simulated 3D Surface from Brightness")
+    fig.colorbar(surf, shrink=0.5, aspect=10)
+    plt.tight_layout()
+    plt.show()
+
+
 # Assume full image spans this geo extent (you can change this)
-geo_bounds = {
-    "west": -71,
-    "east": -66.8,
-    "north": -15,
-    "south": -17.5
-}
+geo_bounds = get_geo_bounds_from_input()
 
 # Tutorial:
 # geo_bounds defines the geographic extent of the image.
@@ -61,6 +98,73 @@ geo_bounds = {
 # - "north" and "south" represent the latitude bounds.
 # These values are used to map pixel coordinates to geographic coordinates.
 # Update these values based on the geographic area your image represents.
+
+def save_surface_as_kml(region, bbox, filename="surface_3d.kml"):
+    """
+    Converts the grayscale intensity of a region into a 3D KML surface (extruded points).
+    Each pixel is converted to (lon, lat, alt) based on the image bounds and bbox.
+    """
+    from pathlib import Path
+
+    x1, y1, x2, y2 = bbox
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+
+    kml = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
+           '<Style id="redLine"><LineStyle><color>ff0000ff</color><width>1.5</width></LineStyle></Style>']
+
+    for row in range(0, h, 5):  # sample every 5 pixels for manageability
+        coords = []
+        for col in range(0, w, 5):
+            pixel_x = x1 + col
+            pixel_y = y1 + row
+            lon, lat = pixel_to_latlon(pixel_x, pixel_y, orig.shape, geo_bounds)
+            alt = int(gray[row, col]) * 5  # scale altitude
+            coords.append(f"{lon},{lat},{alt}")
+        if coords:
+            kml += [
+                '<Placemark><styleUrl>#redLine</styleUrl>',
+                '<LineString><altitudeMode>relativeToGround</altitudeMode><coordinates>',
+                " ".join(coords),
+                '</coordinates></LineString></Placemark>'
+            ]
+
+    kml.append('</Document></kml>')
+    Path(filename).write_text("\n".join(kml))
+    print(f"[✔] 3D Surface exported to: {filename}")
+
+
+def match_gmt_colormap(region, n_colors=6):
+    """
+    Detect dominant colors in a region and match to GMT-style colormaps.
+    """
+    pixels = region.reshape(-1, 3)
+    kmeans = KMeans(n_clusters=n_colors, random_state=0, n_init=10).fit(pixels)
+    dominant_rgb = kmeans.cluster_centers_ / 255.0
+
+    gmt_cmaps = {
+        'terrain': cm.get_cmap('terrain'),
+        'gist_earth': cm.get_cmap('gist_earth'),
+        'ocean': cm.get_cmap('ocean'),
+        'viridis': cm.get_cmap('viridis'),
+        'nipy_spectral': cm.get_cmap('nipy_spectral'),
+        'jet': cm.get_cmap('jet')
+    }
+
+    def sample_cmap(cmap, n=100):
+        return np.array([cmap(i / (n - 1))[:3] for i in range(n)])
+
+    scores = {}
+    for name, cmap in gmt_cmaps.items():
+        cmap_samples = sample_cmap(cmap)
+        dists = distance.cdist(dominant_rgb, cmap_samples, 'euclidean')
+        scores[name] = dists.min(axis=1).mean()
+
+    best = sorted(scores.items(), key=lambda x: x[1])
+    print("[✓] Best matching colormap:", best[0][0])
+    print("Top matches:", [name for name, _ in best[:3]])
+
 def pixel_to_latlon(x, y, img_shape, geo_bounds):
     h, w = img_shape[:2]
     rx = x / w
@@ -105,8 +209,12 @@ def extract_and_draw(event=None):
             cv2.FONT_HERSHEY_COMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
     if bbox and target_rgb is not None:
+        
         x1, y1, x2, y2 = bbox
         region = orig[y1:y2, x1:x2]
+        match_gmt_colormap(region)
+        # show_3d_surface(region)
+        # save_surface_as_kml(region, bbox)
         dist = np.linalg.norm(region.astype(float) - target_rgb, axis=2)
         mask = (dist <= tol).astype(np.uint8) * 255
         contours = measure.find_contours(mask, 0.5)
@@ -120,6 +228,32 @@ def extract_and_draw(event=None):
     cv2.imshow("Real-Time Contour Extractor", img)
 
 
+def mouse_cb(event, x, y, flags, param):
+    global ix, iy, drawing, bbox, target_rgb
+    if event == cv2.EVENT_LBUTTONDOWN:
+        drawing = True
+        ix, iy = x, y
+        bbox = None
+    elif event == cv2.EVENT_MOUSEMOVE and drawing:
+        # draw temporary rectangle
+        img_temp = orig.copy()
+        cv2.rectangle(img_temp, (ix, iy), (x, y), (0, 255, 0), 2)
+        cv2.imshow("Real-Time Contour Extractor", img_temp)
+    elif event == cv2.EVENT_LBUTTONUP:
+        drawing = False
+        x1, x2 = sorted([ix, x])
+        y1, y2 = sorted([iy, y])
+        bbox = (x1, y1, x2, y2)
+        extract_and_draw()
+    elif event == cv2.EVENT_RBUTTONDOWN:
+        if bbox:
+            target_rgb = get_avg_rgb(x, y, sz=7)
+            print(f"[INFO] Picked RGB: {target_rgb}")
+            # Add colormap matching here:
+            x1, y1, x2, y2 = bbox
+            region = orig[y1:y2, x1:x2]
+            match_gmt_colormap(region)
+            extract_and_draw()
 
 
 from pathlib import Path
@@ -133,13 +267,19 @@ def save_kml(contours, bbox, filename="picked_contours.kml"):
         coords = [
             f"{lon},{lat},0"
             for px, py in pts
-            for lon,
-    elif event == cv2.EVENT_RBUTTONDOWN:
-        # pick color inside bbox
-        if bbox:
-            target_rgb = get_avg_rgb(x, y, sz=7)
-            print(f"[INFO] Picked RGB: {target_rgb}")
-            extract_and_draw()
+            for lon, lat in [pixel_to_latlon(px, py, orig.shape, geo_bounds)]
+        ]
+        kml += [
+            f"<Placemark><name>feature_{i}</name>",
+            "<Style><LineStyle><color>ff0000ff</color><width>2</width></LineStyle></Style>",
+            "<LineString><tessellate>1</tessellate><coordinates>",
+            " ".join(coords),
+            "</coordinates></LineString></Placemark>"
+        ]
+    kml.append("</Document></kml>")
+    Path(filename).write_text("\n".join(kml))
+    print(f"[✔] Saved Geo-referenced KML → {filename}")
+
 
 # set up window
 cv2.namedWindow("Real-Time Contour Extractor", cv2.WINDOW_NORMAL)
