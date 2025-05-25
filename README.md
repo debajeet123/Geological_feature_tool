@@ -74,7 +74,7 @@ Pixel coordinates are automatically converted to geographic coordinates using th
 ## 📸 Screenshot
 
 <p align="center">
-  <img src="Screenshot.png" width="800"/>
+  <img src="Topographic Map with Contour Box.png" width="800"/>
 </p>
 
 ---
