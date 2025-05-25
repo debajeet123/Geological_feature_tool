@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.9-blue" />
+  <img src="https://img.shields.io/badge/GeoJSON-enabled-brightgreen" />
+  <img src="https://img.shields.io/badge/KML-export-orange" />
+  <img src="https://img.shields.io/badge/OpenCV-active-red" />
+  <img src="https://img.shields.io/badge/3D_surface-Matplotlib-purple" />
+</p>
+
+
 # 🗺️ Real-Time Map Contour Extractor
 
 A Python-based tool to interactively extract map features by color, using OpenCV and scikit-image. Automatically converts bounding boxes and contours into georeferenced coordinates and exports to KML.
